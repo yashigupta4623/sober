@@ -13,7 +13,8 @@ Sober is a self-hosted, open-source AI memory companion built for the **WeMakeDe
 *   **📊 Live Obsidian-Style Visual Graph** — Scroll down to watch your memory form in real-time on an interactive, force-directed graph canvas with subtle connection lines and nodes.
 *   **⚡ High Performance Ingestion** — Uses asynchronous background threads (`run_in_background=True`) to ingest massive chat history files (e.g. 20,000+ characters) instantly without freezing the UI.
 *   **🛡️ Input Sanitization** — Automatically filters out minified code bundles, base64 images, and system tokens (over 1000 characters) to prevent database chunking errors.
-*   **📉 Flat Token Cost & ~95% Savings** — Only retrieves the relevant memory slice using hybrid search, keeping token usage flat even after 100+ turns (see `benchmark.py`).
+*   **✨ Self-Improving Memory (`improve`)** — Every 5 chat turns (and on-demand via the Improve button), Sober runs Cognee's enrichment pipeline to deepen the graph and re-weight memory — it gets sharper the more you use it.
+*   **📉 Flat Token Cost & ~97% Savings** — Only retrieves the relevant memory slice using hybrid search, keeping token usage flat (~86 tokens) even after 100+ turns (see `benchmark.py`).
 
 ---
 
@@ -93,10 +94,11 @@ To prove how much token space and API cost Cognee memory saves compared to naive
 python benchmark.py
 ```
 
-### Naive Prompt vs. Cognee Memory Graph (After 100 Turns)
-*   **Naive Prompt Tokens**: grows **linearly with every turn** — a 100-turn history is already ~3,000 tokens per question, and it eventually overflows the context window entirely.
-*   **Cognee Recall Tokens**: stays **flat (~100 tokens)** regardless of how long the chat history becomes, because hybrid graph-vector search retrieves only the relevant slice.
-*   **Token Savings**: **~95%+** reduction in prompt size at 100 turns — and the gap keeps widening as history grows.
+### Naive Prompt vs. Cognee Memory Graph (Real run, 100 turns)
+*   **Naive Prompt Tokens**: **~2,812** — grows linearly with every turn, and eventually overflows the context window entirely.
+*   **Cognee Recall Tokens**: **~86** — stays flat regardless of how long the chat history becomes, because hybrid graph-vector search retrieves only the relevant slice.
+*   **Token Savings**: **~97%** reduction in prompt size at 100 turns — and the gap keeps widening as history grows.
+*   **Recall Accuracy**: with the fact buried under 97 turns of small talk, Cognee still answered *"Your dog's name is Pixel, and he's a beagle."*
 
 ---
 
@@ -109,6 +111,7 @@ We utilize Cognee's core memory lifecycle APIs directly to power the user experi
 | **Ingesting chat / transcripts** | `cognee.remember(text, dataset_name)` |
 | **Grounded Retrieval Query** | `cognee.recall(query, SearchType.GRAPH_COMPLETION)` |
 | **Custom Visualizer & Context Sync** | `get_graph_engine().get_graph_data()` |
+| **Self-Improving Memory** | `cognee.improve(dataset)` — auto-runs every 5 chats + on-demand via the ✨ Improve button, enriching the graph and re-weighting memory from usage |
 | **Forget Memory / Reset** | `cognee.forget(everything=True)` |
 
 ---

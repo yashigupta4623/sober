@@ -455,6 +455,7 @@
     <div class="panel reveal" style="position:relative">
       <div class="ptop"><span class="lab">memory graph</span><span class="sp"></span>
         <button class="btn" id="reset" style="padding:7px 12px;font-size:13px;margin-right:8px"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Reset</button>
+        <button class="btn" id="improve" style="padding:7px 12px;font-size:13px;margin-right:8px"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>Improve</button>
         <button class="btn" id="build" style="padding:7px 13px;font-size:13px"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>Build</button></div>
       <canvas id="graphCanvas"></canvas>
       <div class="gempty" id="gempty">Say something on the left — your memory graph builds and grows here automatically.</div>
@@ -634,6 +635,14 @@ const COLORS={Entity:"#f08c4f",EntityType:"#3bbcb0",DocumentChunk:"#638bf5",Text
   addEventListener("mouseup",()=>drag=null);
   document.getElementById("build").onclick=build;
   window.__refreshGraph=build;
+  const impBtn=document.getElementById("improve");
+  impBtn.onclick=async()=>{
+    impBtn.disabled=true;const old=impBtn.innerHTML;impBtn.textContent="Improving…";
+    try{const r=await fetch("/improve",{method:"POST"});const d=await r.json();
+      if(d.ok){setTimeout(()=>{build();impBtn.innerHTML=old;impBtn.disabled=false;},6000);return;}
+    }catch(e){}
+    impBtn.innerHTML=old;impBtn.disabled=false;
+  };
   document.getElementById("reset").onclick=async()=>{
     if(!confirm("Clear all memory and start fresh?"))return;
     await fetch("/forget",{method:"POST"});

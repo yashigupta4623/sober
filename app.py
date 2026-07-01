@@ -150,6 +150,21 @@ async def schedule_context_update():
     asyncio.create_task(task())
 
 
+# Self-improvement: every N chat turns, run Cognee's enrichment pipeline so the
+# graph gets sharper the more Sober is used (improve() re-weights and enriches).
+IMPROVE_EVERY = 5
+_chat_turns = 0
+
+
+async def mem_improve():
+    if USE_CLOUD:
+        return
+    try:
+        await cognee.improve(dataset=DATASET, run_in_background=True)
+    except Exception:
+        pass
+
+
 _SYSTEM_PROMPT = (
     "You are Sober, an AI assistant with a persistent memory graph that spans multiple "
     "AI tools and sessions. Answer the user's question using ONLY the memory context "
@@ -217,6 +232,12 @@ async def chat(body: ChatIn):
 
     await mem_remember(f"Sober replied: {reply}", run_in_background=True)
     await schedule_context_update()
+
+    global _chat_turns
+    _chat_turns += 1
+    if _chat_turns % IMPROVE_EVERY == 0:
+        await mem_improve()
+
     return {"reply": reply, "backend": "cloud" if USE_CLOUD else "local"}
 
 
@@ -231,6 +252,18 @@ async def build_graph():
     STATIC_DIR.mkdir(exist_ok=True)
     await cognee.visualize_graph(destination_file_path=str(GRAPH_HTML), dataset=DATASET)
     return {"ok": True, "url": "/static/graph.html"}
+
+
+@app.post("/improve")
+async def improve_memory():
+    """Run Cognee's self-improvement pipeline: enrich the graph and re-weight memory."""
+    if USE_CLOUD:
+        return {"ok": False, "error": "Self-improvement runs in your cloud dashboard on Cognee Cloud."}
+    try:
+        await cognee.improve(dataset=DATASET, run_in_background=True)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    return {"ok": True}
 
 
 @app.post("/forget")

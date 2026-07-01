@@ -36,9 +36,10 @@ FACTS = [
     "I am building a portfolio website with Next.js.",
     "My favorite coffee order is an oat-milk flat white.",
 ]
+_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 FILLER = [
-    f"Turn {i}: we chatted about the weather, lunch plans, and other small talk "
-    f"that has nothing to do with anything important."
+    f"On {_DAYS[i % 7]} we chatted about the weather, lunch plans, and other "
+    f"small talk — nothing important worth remembering."
     for i in range(TURNS - len(FACTS))
 ]
 HISTORY = FACTS + FILLER
