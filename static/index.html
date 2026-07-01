@@ -506,7 +506,7 @@
 <section class="sec" id="loved"><div class="wrap">
   <div class="center reveal"><span class="kicker">Why it matters</span><h2 class="big">Memory changes everything</h2></div>
   <div class="quotes">
-    <div class="quote reveal"><p>"I move between ChatGPT, Claude and Cursor all day — and re-explain myself every time. A shared memory layer is the obvious missing piece."</p><div class="by"><span class="av">DV</span><div><div class="nm">A developer</div><div class="hh">the daily AI-tab problem</div></div></div></div>
+    <div class="quote reveal"><p>You move between ChatGPT, Claude and Cursor all day — and re-explain yourself every time. A shared memory layer is the obvious missing piece.</p><div class="by"><span class="av">?</span><div><div class="nm">The daily AI-tab problem</div><div class="hh">why Sober exists</div></div></div></div>
     <div class="quote reveal"><p>"When you call an LLM, every request is stateless. It doesn't remember the last session, and it spills out of its context window."</p><div class="by"><span class="av">WC</span><div><div class="nm">The Hangover Part AI</div><div class="hh">WeMakeDevs × Cognee — the problem statement</div></div></div></div>
   </div>
 </div></section>
@@ -643,8 +643,14 @@ const COLORS={Entity:"#f08c4f",EntityType:"#3bbcb0",DocumentChunk:"#638bf5",Text
     }catch(e){}
     impBtn.innerHTML=old;impBtn.disabled=false;
   };
-  document.getElementById("reset").onclick=async()=>{
-    if(!confirm("Clear all memory and start fresh?"))return;
+  const resetBtn=document.getElementById("reset"),resetHTML=resetBtn.innerHTML;let resetArm=null;
+  resetBtn.onclick=async()=>{
+    if(!resetArm){
+      resetBtn.textContent="Sure? Click again";resetBtn.style.color="#ea4335";
+      resetArm=setTimeout(()=>{resetArm=null;resetBtn.innerHTML=resetHTML;resetBtn.style.color="";},3000);
+      return;
+    }
+    clearTimeout(resetArm);resetArm=null;resetBtn.innerHTML=resetHTML;resetBtn.style.color="";
     await fetch("/forget",{method:"POST"});
     N=[];E=[];posCache={};if(raf)cancelAnimationFrame(raf);x.clearRect(0,0,w,h);
     document.querySelectorAll("#log .msg").forEach(m=>m.remove());
@@ -663,7 +669,14 @@ const COLORS={Entity:"#f08c4f",EntityType:"#3bbcb0",DocumentChunk:"#638bf5",Text
   function showAuth(){overlay.classList.add("on");mAuth.style.display="block";mOnboard.style.display="none";mAuthDefault.style.display="block";mGoogleStep.style.display="none";}
   function showOnboard(email){overlay.classList.add("on");mAuth.style.display="none";mOnboard.style.display="block";document.getElementById("obEmail").textContent=email;}
   function closeAll(){overlay.classList.remove("on");}
-  function signIn(email){email=(email||"").trim();if(!email||email.indexOf("@")<1){alert("Please enter a valid email.");return;}localStorage.setItem("sober_user",email);setNav(email);showOnboard(email);
+  function signIn(email){email=(email||"").trim();
+    if(!email||email.indexOf("@")<1){
+      const f=mGoogleStep.style.display==="block"?document.getElementById("googleEmail"):document.getElementById("authEmail");
+      if(!f.dataset.ph)f.dataset.ph=f.placeholder;
+      f.style.borderColor="#ea4335";f.value="";f.placeholder="Please enter a valid email";f.focus();
+      setTimeout(()=>{f.style.borderColor="";f.placeholder=f.dataset.ph;},2500);
+      return;}
+    localStorage.setItem("sober_user",email);setNav(email);showOnboard(email);
     fetch("/profile",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})}).then(()=>{try{window.__refreshGraph&&window.__refreshGraph();window.__updateStatus&&window.__updateStatus();setTimeout(window.__updateStatus, 4500);}catch(_){}}).catch(()=>{});}
   document.querySelectorAll("[data-getstarted]").forEach(b=>b.onclick=()=>{const u=user();if(u){setNav(u);showOnboard(u);}else showAuth();});
   document.getElementById("authGo").onclick=()=>signIn(document.getElementById("authEmail").value);
