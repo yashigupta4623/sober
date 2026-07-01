@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Sober — give your AI agent a memory that never forgets</title>
+<meta name="description" content="Sober gives AI agents persistent, graph-based memory that survives every session. Built on open-source Cognee."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;450;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff; --bg2:#faf9f7; --bg3:#f4f2ee; --ink:#191512; --body:#5c554c; --muted:#8b8378;
+    --line:#eceae4; --line2:#e0ddd4;
+    --accent:#e07a33; --accent2:#cf6a26; --accent-soft:#fbeede; --teal:#1f9e8f; --blue:#4d7ef0; --violet:#7d5fe0; --green:#34a85a;
+    --shadow:0 1px 2px rgba(25,21,18,.04),0 10px 28px rgba(25,21,18,.06); --shadow-lg:0 24px 60px rgba(25,21,18,.10);
+    --r:16px; --maxw:1140px;
+  }
+  *{box-sizing:border-box;} html{scroll-behavior:smooth;} html,body{margin:0;}
+  body{background:var(--bg);color:var(--ink);font-family:"Inter",system-ui,sans-serif;font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;letter-spacing:-.011em;}
+  h1,h2,h3,h4{font-family:"Sora",sans-serif;letter-spacing:-.03em;line-height:1.08;margin:0;}
+  a{color:inherit;text-decoration:none;}
+  .ic{width:20px;height:20px;stroke:currentColor;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round;display:block;}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px;}
+  .reveal{opacity:0;transform:translateY(20px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1);}
+  .reveal.in{opacity:1;transform:none;}
+  .pill{display:inline-flex;align-items:center;gap:8px;font:600 12.5px Inter;color:var(--body);border:1px solid var(--line2);background:var(--bg);padding:7px 13px;border-radius:999px;}
+  .pill .d{width:7px;height:7px;border-radius:50%;background:var(--green);}
+  .btn{display:inline-flex;align-items:center;gap:8px;font:600 15px Inter;border-radius:11px;cursor:pointer;padding:12px 20px;transition:.15s;border:1px solid var(--line2);background:var(--bg);color:var(--ink);}
+  .btn:hover{border-color:var(--ink);} .btn .ic{width:17px;height:17px;}
+  .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .btn.primary:hover{background:#000;transform:translateY(-1px);box-shadow:var(--shadow);}
+  .kicker{color:var(--accent);font:600 13px Inter;letter-spacing:.1em;text-transform:uppercase;}
+  .center{text-align:center;max-width:680px;margin:0 auto;}
+  h2.big{font-size:clamp(28px,3.6vw,40px);font-weight:800;margin-top:12px;}
+  .lead{color:var(--body);font-size:17px;margin-top:14px;}
+
+  /* nav */
+  header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.8);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);}
+  .nav{display:flex;align-items:center;gap:14px;height:66px;}
+  .logo{display:flex;align-items:center;gap:10px;}
+  .logo b{font-family:Sora;font-weight:700;font-size:19px;}
+  .navlinks{margin-left:auto;display:flex;align-items:center;gap:2px;}
+  .navlinks a{font:600 14px Inter;color:var(--body);padding:9px 13px;border-radius:8px;}
+  .navlinks a:hover{color:var(--ink);background:var(--bg3);}
+  @media(max-width:780px){.navlinks a:not(.btn){display:none;}}
+
+  /* hero */
+  .hero{padding:70px 0 40px;}
+  .herogrid{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;}
+  @media(max-width:900px){.herogrid{grid-template-columns:1fr;gap:28px;}}
+  .hero h1{font-size:clamp(36px,5vw,58px);font-weight:800;margin-top:20px;}
+  .hero h1 em{font-style:normal;color:var(--accent);}
+  .hero .sub{color:var(--body);font-size:18px;margin-top:18px;max-width:520px;}
+  .hero .cl{display:flex;gap:12px;margin-top:28px;flex-wrap:wrap;}
+  .hero .note{margin-top:18px;color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px;}
+
+  /* hero visual: self-building memory graph */
+  .visual{background:linear-gradient(180deg,#fff,var(--bg2));border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow-lg);padding:18px;position:relative;overflow:hidden;}
+  .visual .vtop{display:flex;align-items:center;gap:7px;margin-bottom:6px;padding:4px 6px;}
+  .visual .vtop i{width:9px;height:9px;border-radius:50%;display:block;} .visual .vtop span{margin-left:6px;font:600 12px Inter;color:var(--muted);}
+  .gsvg{width:100%;height:300px;display:block;}
+  #bgGrid{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;}
+  .hero,section.sec,header,footer{position:relative;z-index:1;}
+  #heroGraph{width:100%;height:300px;display:block;}
+  .replay{padding:8px 14px 18px;display:flex;flex-direction:column;gap:10px;min-height:296px;}
+  .rb{display:flex;gap:9px;align-items:flex-start;opacity:0;transform:translateY(8px);animation:rin .45s cubic-bezier(.2,.7,.2,1) forwards;}
+  .rb.me{flex-direction:row-reverse;}
+  .rb .a{width:26px;height:26px;border-radius:7px;flex:none;display:grid;place-items:center;font:700 9px Inter;}
+  .rb.me .a{background:#f0ece4;color:#8b8378;} .rb.bot .a{background:#191512;color:#fff;}
+  .rb .t{padding:9px 13px;border-radius:12px;font-size:13.5px;max-width:78%;background:#ece4d6;color:#241c14;font-weight:500;}
+  .rb.bot .t{background:#fbeede;border:1px solid #f3dcc2;} .rb.bot .t.recall{color:#cf6a26;font-weight:600;}
+  .rsplit{display:flex;align-items:center;gap:10px;text-align:center;font:600 11px Inter;letter-spacing:.05em;color:#b3a99a;opacity:0;animation:rin .45s forwards;margin:2px 0;}
+  .rsplit:before,.rsplit:after{content:"";flex:1;height:1px;background:#ece8df;}
+  @keyframes rin{to{opacity:1;transform:none;}}
+  .gsvg .edge{stroke:var(--line2);stroke-width:1.5;fill:none;stroke-dasharray:160;stroke-dashoffset:160;animation:draw 1s forwards;}
+  .gsvg .node circle{transform-box:fill-box;transform-origin:center;animation:pop .5s cubic-bezier(.3,1.4,.5,1) backwards;}
+  .gsvg .node text{font:600 12px Inter;fill:var(--ink);opacity:0;animation:fadein .5s forwards;}
+  .gsvg .pulse{animation:pulse 2.6s ease-in-out infinite;}
+  @keyframes draw{to{stroke-dashoffset:0;}}
+  @keyframes pop{from{transform:scale(0);}to{transform:scale(1);}}
+  @keyframes fadein{to{opacity:1;}}
+  @keyframes pulse{0%,100%{opacity:.5;r:5;}50%{opacity:1;r:7;}}
+
+  section.sec{padding:72px 0;}
+  .alt{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+
+  /* problem before/after */
+  .ba{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:46px;}
+  @media(max-width:760px){.ba{grid-template-columns:1fr;}}
+  .bacard{border:1px solid var(--line);border-radius:var(--r);background:#fff;box-shadow:var(--shadow);overflow:hidden;}
+  .bacard .h{display:flex;align-items:center;gap:9px;padding:14px 18px;border-bottom:1px solid var(--line);font:700 15px Sora;}
+  .bacard.bad .h{color:#c0443a;} .bacard.good .h{color:var(--teal);}
+  .bacard .body{padding:18px;min-height:188px;display:flex;flex-direction:column;gap:9px;justify-content:center;}
+  .chatline{display:flex;gap:9px;align-items:flex-start;}
+  .chatline .a{width:24px;height:24px;border-radius:7px;flex:none;display:grid;place-items:center;font:700 9px Inter;background:var(--bg3);color:var(--muted);}
+  .chatline .t{background:var(--bg3);border-radius:10px;padding:8px 11px;font-size:13.5px;color:var(--ink);}
+  .fade{animation:fadeghost 4s infinite;} @keyframes fadeghost{0%,40%{opacity:1;}70%,100%{opacity:.18;}}
+  .recall{color:var(--teal);font-weight:600;}
+
+  /* steps */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:46px;}
+  @media(max-width:760px){.steps{grid-template-columns:1fr;}}
+  .step{border:1px solid var(--line);border-radius:var(--r);padding:24px;background:#fff;box-shadow:var(--shadow);}
+  .step .n{width:34px;height:34px;border-radius:9px;background:var(--accent-soft);color:var(--accent2);display:grid;place-items:center;font:700 14px Sora;}
+  .step h3{font-size:18px;margin:14px 0 7px;} .step p{color:var(--body);font-size:14.5px;}
+  .step code{background:var(--bg3);padding:2px 7px;border-radius:6px;font-size:12.5px;color:var(--accent2);}
+
+  /* features */
+  .feats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:46px;}
+  @media(max-width:820px){.feats{grid-template-columns:1fr;}}
+  .feat{border:1px solid var(--line);border-radius:var(--r);padding:24px;background:#fff;transition:.18s;}
+  .feat:hover{box-shadow:var(--shadow-lg);transform:translateY(-3px);}
+  .feat .fi{width:42px;height:42px;border-radius:11px;background:var(--accent-soft);color:var(--accent2);display:grid;place-items:center;margin-bottom:14px;}
+  .feat h3{font-size:17px;margin-bottom:6px;} .feat p{color:var(--body);font-size:14px;}
+
+  /* integrations */
+  .intgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:40px;}
+  @media(max-width:820px){.intgrid{grid-template-columns:repeat(2,1fr);}}
+  .intcard{display:flex;flex-direction:column;align-items:flex-start;gap:10px;text-align:left;border:1px solid var(--line);border-radius:14px;padding:18px;background:#fff;cursor:pointer;transition:.15s;font:inherit;color:inherit;}
+  .intcard:hover{box-shadow:var(--shadow-lg);transform:translateY(-3px);border-color:var(--line2);}
+  .intcard .nm{font:700 15px Sora;display:flex;align-items:center;gap:9px;}
+  .intcard .lg{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:#fff;font:700 12px Inter;flex:none;}
+  .intcard .act{font-size:12.5px;color:var(--accent2);font-weight:600;}
+  .importbox{margin-top:18px;border:1px solid var(--line2);border-radius:16px;background:#fff;box-shadow:var(--shadow);padding:18px;display:none;}
+  .importbox.on{display:block;}
+  .ibhead{font:500 14px Inter;color:var(--body);margin-bottom:10px;}
+  #ibtext{width:100%;min-height:110px;border:1px solid var(--line2);border-radius:11px;padding:12px;font:14px/1.5 Inter;resize:vertical;outline:none;background:var(--bg2);color:var(--ink);box-sizing:border-box;}
+  #ibtext:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  .ibrow{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap;}
+  .ibmsg{font-size:13px;color:var(--teal);font-weight:600;} .ibmsg.err{color:#c0443a;}
+
+  /* auth + onboarding modals */
+  .overlay{position:fixed;inset:0;z-index:100;background:rgba(20,16,12,.5);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;padding:20px;}
+  .overlay.on{display:flex;}
+  .modal{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 40px 90px rgba(0,0,0,.35);width:100%;max-width:440px;padding:30px;position:relative;}
+  .modal h3{font:800 22px Sora;letter-spacing:-.02em;} .modal .sub{color:var(--body);font-size:14.5px;margin-top:8px;}
+  .mclose{position:absolute;top:14px;right:16px;background:none;border:0;cursor:pointer;color:var(--muted);font-size:22px;line-height:1;}
+  .field{width:100%;padding:13px 15px;border:1px solid var(--line2);border-radius:11px;font:15px Inter;margin-top:16px;outline:none;box-sizing:border-box;}
+  .field:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  .gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px;border:1px solid var(--line2);border-radius:11px;background:#fff;cursor:pointer;font:600 14.5px Inter;}
+  .gbtn:hover{border-color:var(--ink);}
+  .ordiv{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;margin:16px 0;} .ordiv:before,.ordiv:after{content:"";flex:1;height:1px;background:var(--line);}
+  .connlist{display:flex;flex-direction:column;gap:10px;margin-top:18px;}
+  .conntool{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;}
+  .conntool .lg{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:#fff;font:700 12px Inter;flex:none;}
+  .conntool .mid{flex:1;min-width:0;} .conntool .nm{font:600 14px Inter;} .conntool .gd{font-size:12px;color:var(--muted);}
+  .conntool .cbtn{font:600 13px Inter;border:1px solid var(--line2);background:#fff;border-radius:9px;padding:7px 14px;cursor:pointer;white-space:nowrap;}
+  .conntool .cbtn:hover{border-color:var(--ink);}
+  .conntool.done{border-color:rgba(31,158,143,.4);background:#eef8f5;} .conntool.done .cbtn{background:var(--teal);color:#fff;border-color:var(--teal);}
+  .skip{margin-top:18px;text-align:center;} .skip a{color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline;}
+  .who{display:inline-flex;align-items:center;gap:8px;} .who .av{width:24px;height:24px;border-radius:50%;background:#fff;color:var(--ink);display:grid;place-items:center;font:700 10px Inter;}
+
+  /* === pieces.app style: floating pill nav, dark hero, product mockup, sticky CTA === */
+  header{position:fixed!important;top:14px;left:0;right:0;z-index:60;background:transparent!important;border:0!important;backdrop-filter:none!important;}
+  header .nav{max-width:880px;margin:0 auto;height:auto;background:#16120f;border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:8px 8px 8px 20px;box-shadow:0 12px 34px rgba(0,0,0,.35);}
+  header .logo b{color:#fff;}
+  header .navlinks a{color:rgba(255,255,255,.68);} header .navlinks a:hover{color:#fff;background:rgba(255,255,255,.08);}
+  header .btn.primary{background:#fff!important;color:#191512!important;border:0!important;border-radius:999px;}
+  .hero{background:#0b0908;color:#fff;padding:128px 0 0!important;position:relative;overflow:hidden;}
+  .hero:before{content:"";position:absolute;inset:0;background:radial-gradient(125% 80% at 50% -15%,#2a221b 0%,#0b0908 52%);}
+  .hero:after{content:"";position:absolute;top:-10%;left:-5%;width:60%;height:70%;background:radial-gradient(closest-side,rgba(224,122,51,.10),transparent);filter:blur(20px);}
+  .herohead{position:relative;z-index:2;text-align:center;max-width:840px;margin:0 auto;padding:0 24px;}
+  .herohead .pill{background:rgba(255,255,255,.06)!important;border-color:rgba(255,255,255,.16)!important;color:rgba(255,255,255,.82)!important;}
+  .herohead h1{font-size:clamp(40px,6.4vw,74px);font-weight:800;color:#fff;letter-spacing:-.035em;line-height:1.02;margin-top:22px;}
+  .herohead .sub{color:rgba(255,255,255,.6);font-size:18px;max-width:560px;margin:20px auto 0;}
+  .heroCl{display:flex;justify-content:center;gap:12px;margin-top:30px;}
+  .btn.white{background:#fff;color:#191512;border:0;border-radius:999px;padding:13px 26px;font-weight:600;}
+  .btn.white:hover{transform:translateY(-1px);box-shadow:0 10px 30px rgba(0,0,0,.4);}
+  .mock{position:relative;z-index:2;max-width:980px;margin:56px auto 0;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -8px 70px rgba(0,0,0,.55);overflow:hidden;}
+  .mockbar{display:flex;align-items:center;gap:7px;padding:13px 16px;border-bottom:1px solid var(--line);background:#faf9f7;}
+  .mockbar i{width:11px;height:11px;border-radius:50%;display:block;} .mockbar span{margin-left:8px;font:600 12.5px Inter;color:var(--muted);}
+  .mockbody{display:grid;grid-template-columns:236px 1fr;}
+  @media(max-width:720px){.mockbody{grid-template-columns:1fr;} .mockside{display:none;}}
+  .mockside{border-right:1px solid var(--line);padding:16px;background:#faf9f7;}
+  .mstitle{font:600 11px Inter;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+  .mitem{padding:10px 12px;border-radius:10px;font:600 13px Inter;color:var(--ink);margin-bottom:6px;border:1px solid transparent;}
+  .mitem span{display:block;font-weight:500;font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .mitem.active{background:#fff;border-color:var(--line2);box-shadow:var(--shadow);}
+  .mockmain{padding:16px 18px;text-align:left;min-height:300px;}
+  .mmhead{font:600 12px Inter;color:var(--muted);margin-bottom:8px;}
+  .stickyCta{position:fixed;left:0;right:0;bottom:18px;z-index:55;display:flex;justify-content:center;pointer-events:none;}
+  .stickyCta .inner{pointer-events:auto;display:flex;align-items:center;gap:14px;background:#16120f;color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:11px 12px 11px 20px;box-shadow:0 16px 44px rgba(0,0,0,.4);font:500 14px Inter;max-width:92vw;}
+  .stickyCta b{font-weight:700;} .stickyCta .go{background:#fff;color:#191512;border:0;border-radius:999px;padding:8px 16px;font:600 13px Inter;cursor:pointer;white-space:nowrap;}
+  .stickyCta .x{background:none;border:0;color:rgba(255,255,255,.5);cursor:pointer;font-size:18px;line-height:1;}
+
+  /* trust strip */
+  .trust{padding:30px 0;border-bottom:1px solid var(--line);background:var(--bg2);}
+  .trust .wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap;justify-content:center;color:var(--muted);font-size:14px;}
+  .trust .pills{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;}
+  .trust .tp{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:6px 13px;font:600 13px Inter;background:#fff;color:var(--ink);}
+  .trust .tp i{width:9px;height:9px;border-radius:50%;display:block;}
+  /* icon grid */
+  .iconwrap{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin:36px auto 0;max-width:560px;}
+  .toolitem{display:flex;flex-direction:column;align-items:center;gap:9px;}
+  .toolitem span{font:600 12px Inter;color:var(--muted);}
+  .toolic{width:64px;height:64px;border-radius:16px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;box-shadow:var(--shadow);transition:.2s cubic-bezier(.2,.7,.2,1);}
+  .toolic:hover{transform:translateY(-5px) scale(1.05);}
+  .toolic img{width:34px;height:34px;} .toolic .ic{width:30px;height:30px;}
+  .toolic.dark{background:#191512;} .toolic.dark .ic{color:#fff;}
+  /* testimonials */
+  .quotes{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:40px;}
+  @media(max-width:760px){.quotes{grid-template-columns:1fr;}}
+  .quote{border:1px solid var(--line);border-radius:16px;background:#fff;padding:22px;box-shadow:var(--shadow);}
+  .quote p{font-size:15.5px;color:var(--ink);line-height:1.55;margin:0;}
+  .quote .by{display:flex;align-items:center;gap:10px;margin-top:16px;}
+  .quote .av{width:36px;height:36px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font:700 13px Inter;flex:none;}
+  .quote .nm{font:600 14px Inter;} .quote .hh{font-size:12.5px;color:var(--muted);}
+
+  /* demo */
+  .demo{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:46px;}
+  @media(max-width:980px){.demo{grid-template-columns:1fr;}}
+  .panel{border:1px solid var(--line);border-radius:var(--r);background:#fff;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden;min-height:520px;}
+  .ptop{display:flex;align-items:center;gap:9px;padding:14px 16px;border-bottom:1px solid var(--line);}
+  .ptop .lab{font:600 13px Inter;color:var(--muted);} .ptop .sp{margin-left:auto;}
+  #log{flex:1;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:13px;}
+  .hello{margin:auto;text-align:center;max-width:340px;color:var(--body);}
+  .hello h4{color:var(--ink);font-size:16px;margin:6px 0;}
+  .sugs{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+  .sug{display:flex;gap:10px;align-items:center;text-align:left;font:500 13.5px Inter;color:var(--ink);background:var(--bg2);border:1px solid var(--line);padding:10px 13px;border-radius:11px;cursor:pointer;transition:.13s;}
+  .sug:hover{border-color:var(--accent);} .sug .ic{width:15px;height:15px;color:var(--accent);flex:none;}
+  .msg{display:flex;gap:10px;max-width:88%;align-items:flex-start;} .msg.me{align-self:flex-end;flex-direction:row-reverse;}
+  .av{width:28px;height:28px;border-radius:8px;flex:none;display:grid;place-items:center;font:700 9px Inter;}
+  .me .av{background:var(--bg3);color:var(--muted);} .bot .av{background:var(--ink);color:#fff;}
+  .bubble{padding:10px 14px;border-radius:13px;font-size:14px;white-space:pre-wrap;word-break:break-word;}
+  .me .bubble{background:var(--bg3);} .bot .bubble{background:var(--accent-soft);border:1px solid #f3dcc2;}
+  .typing span{display:inline-block;width:6px;height:6px;margin:0 1.5px;border-radius:50%;background:var(--muted);animation:bl 1.2s infinite both;} .typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
+  @keyframes bl{0%,80%,100%{opacity:.25}40%{opacity:1}}
+  .composer{display:flex;gap:9px;padding:13px;border-top:1px solid var(--line);}
+  #text{flex:1;padding:11px 14px;border-radius:11px;border:1px solid var(--line2);background:#fff;color:var(--ink);outline:none;font-size:14px;}
+  #text:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  .send{border:0;background:var(--ink);color:#fff;font:600 14px Inter;border-radius:11px;padding:11px 16px;cursor:pointer;display:flex;align-items:center;gap:6px;} .send:disabled{opacity:.5;}
+  #graphCanvas{flex:1;width:100%;display:block;cursor:grab;background:#fff;}
+  .glegend{display:flex;gap:14px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--line);font-size:12px;color:var(--body);}
+  .glegend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;}
+  .gempty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13.5px;text-align:center;padding:24px;pointer-events:none;}
+
+  /* compare */
+  .cmp{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:42px;}
+  @media(max-width:760px){.cmp{grid-template-columns:1fr;}}
+  .cmpc{border:1px solid var(--line);border-radius:var(--r);background:#fff;padding:22px;box-shadow:var(--shadow);}
+  .cmpc h3{font-size:17px;} .cmpc p{color:var(--body);font-size:13.5px;margin:4px 0 0;}
+  .bar{height:12px;border-radius:999px;background:var(--bg3);overflow:hidden;margin-top:14px;}
+  .bar i{display:block;height:100%;border-radius:999px;width:0;transition:width 1.2s cubic-bezier(.2,.7,.2,1);}
+
+  /* cta */
+  .ctaband{max-width:var(--maxw);margin:0 auto;border-radius:24px;padding:56px 28px;text-align:center;background:var(--ink);color:#fff;}
+  .ctaband h2{font-size:clamp(26px,3.4vw,38px);font-weight:800;} .ctaband p{color:rgba(255,255,255,.7);margin:14px auto 26px;max-width:520px;}
+  .ctaband .btn{background:#fff;color:var(--ink);border:0;} .ctaband .btn.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.3);}
+  footer{border-top:1px solid var(--line);margin-top:48px;} .foot{display:flex;align-items:center;gap:14px;padding:26px 0;color:var(--muted);font-size:13px;flex-wrap:wrap;} .foot .sp{margin-left:auto;}
+</style>
+</head>
+<body>
+<canvas id="bgGrid"></canvas>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="mAuth">
+    <button class="mclose" data-close>&times;</button>
+
+    <!-- default view -->
+    <div id="mAuthDefault">
+      <h3>Get started with Sober</h3>
+      <p class="sub">Your personal memory space — one graph across every AI tool.</p>
+      <button class="gbtn" id="googleBtn">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.1 0 24 0 14.6 0 6.4 5.4 2.5 13.3l7.8 6.1C12.2 13.2 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.1 5.3-4.6 7l7.1 5.5c4.2-3.9 6.6-9.6 6.6-17z"/><path fill="#FBBC05" d="M10.3 28.6c-.5-1.5-.8-3-.8-4.6s.3-3.1.8-4.6l-7.8-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.5 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.1 0 11.3-2 15-5.4l-7.1-5.5c-2 1.4-4.6 2.2-7.9 2.2-6.4 0-11.8-3.7-13.7-9.4l-7.8 6.1C6.4 42.6 14.6 48 24 48z"/></svg>
+        Continue with Google email</button>
+      <div class="ordiv">or</div>
+      <input class="field" id="authEmail" type="email" placeholder="you@gmail.com" autocomplete="email"/>
+      <button class="btn primary" id="authGo" style="width:100%;justify-content:center;margin-top:12px">Continue &rarr;</button>
+    </div>
+
+    <!-- google email step -->
+    <div id="mGoogleStep" style="display:none">
+      <button id="googleBack" style="background:none;border:0;cursor:pointer;color:var(--muted);font:600 13px Inter;padding:0;display:flex;align-items:center;gap:5px;margin-bottom:18px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Back</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <svg width="22" height="22" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.1 0 24 0 14.6 0 6.4 5.4 2.5 13.3l7.8 6.1C12.2 13.2 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.1 5.3-4.6 7l7.1 5.5c4.2-3.9 6.6-9.6 6.6-17z"/><path fill="#FBBC05" d="M10.3 28.6c-.5-1.5-.8-3-.8-4.6s.3-3.1.8-4.6l-7.8-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.5 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.1 0 11.3-2 15-5.4l-7.1-5.5c-2 1.4-4.6 2.2-7.9 2.2-6.4 0-11.8-3.7-13.7-9.4l-7.8 6.1C6.4 42.6 14.6 48 24 48z"/></svg>
+        <h3 style="font-size:19px">Continue with your Google email</h3>
+      </div>
+      <p class="sub" style="margin-bottom:0">Enter your Google email address to continue.</p>
+      <input class="field" id="googleEmail" type="email" placeholder="yourname@gmail.com" autocomplete="email"/>
+      <button class="btn primary" id="googleGo" style="width:100%;justify-content:center;margin-top:12px">Continue &rarr;</button>
+      <p style="font-size:12px;color:var(--muted);margin-top:14px;text-align:center">This demo captures your email as identity — no Google account access or OAuth redirect.</p>
+    </div>
+  </div>
+  <div class="modal" id="mOnboard" style="display:none">
+    <button class="mclose" data-close>&times;</button>
+    <h3>Connect your AI history</h3>
+    <p class="sub">Welcome, <b id="obEmail">you</b>. Bring context from the tools you already use — Sober unifies it into one memory graph.</p>
+    <div class="connlist" id="connlist">
+      <div class="conntool" data-local="1"><span class="lg" style="background:#191512">&gt;_</span><div class="mid"><div class="nm">Claude Code <span style="color:var(--teal);font-size:11px;font-weight:600">· auto</span></div><div class="gd">Your local CLI history on this machine — instant.</div></div><button class="cbtn">Connect</button></div>
+      <div class="conntool" data-src="ChatGPT"><span class="lg" style="background:#10a37f">C</span><div class="mid"><div class="nm">ChatGPT</div><div class="gd">Drop ChatGPT export file. <a href="https://chatgpt.com/#settings/DataControls" target="_blank" style="color:var(--accent);font-weight:600;text-decoration:underline" onclick="event.stopPropagation()">Get export &nearr;</a></div></div><button class="cbtn">Connect</button></div>
+      <div class="conntool" data-src="Claude"><span class="lg" style="background:#d97757">A</span><div class="mid"><div class="nm">Claude <span style="color:var(--muted);font-size:11px">(web)</span></div><div class="gd">Drop Claude export file. <a href="https://claude.ai/settings/data-privacy-controls" target="_blank" style="color:var(--accent);font-weight:600;text-decoration:underline" onclick="event.stopPropagation()">Get export &nearr;</a></div></div><button class="cbtn">Connect</button></div>
+      <div class="conntool" data-src="Gemini"><span class="lg" style="background:#4d7ef0">G</span><div class="mid"><div class="nm">Gemini</div><div class="gd">Drop Gemini export file. <a href="https://takeout.google.com/" target="_blank" style="color:var(--accent);font-weight:600;text-decoration:underline" onclick="event.stopPropagation()">Get export &nearr;</a></div></div><button class="cbtn">Connect</button></div>
+    </div>
+    <input type="file" id="obFile" accept=".json,.txt,.md,.html" hidden>
+    <div class="skip" style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;font-size:13px">
+      <a id="btnSignOut" style="color:#ea4335;cursor:pointer;font-weight:600;text-decoration:none">Sign out / Disconnect</a>
+      <a data-close>Continue to my memory &rarr;</a>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="#top">
+      <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
+        <rect width="32" height="32" rx="9" fill="#191512"/>
+        <path d="M16 8 L9 23 M16 8 L23 23 M9 23 L23 23" stroke="#e07a33" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="16" cy="8" r="3.6" fill="#e07a33"/><circle cx="9" cy="23" r="3" fill="#fff"/><circle cx="23" cy="23" r="3" fill="#fff"/>
+      </svg>
+      <b>Sober</b>
+    </a>
+    <nav class="navlinks">
+      <a href="#problem">Problem</a><a href="#how">How it works</a><a href="#integrations">Integrations</a><a href="#demo">Demo</a>
+      <button class="btn primary" data-getstarted id="navCta">Get started</button>
+    </nav>
+  </div>
+</header>
+<a id="top"></a>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="herohead">
+    <span class="pill"><span class="d"></span> WeMakeDevs × Cognee Hackathon · Open source</span>
+    <h1>One memory across every AI tool you use.</h1>
+    <p class="sub">ChatGPT, Claude, Gemini, your coding agents — Sober remembers it all in one graph, so context follows you everywhere. Built on open-source Cognee.</p>
+    <div class="heroCl">
+      <button class="btn white" data-getstarted>Get started — it's free</button>
+      <a class="btn" href="#demo" style="background:rgba(255,255,255,.06);color:#fff;border-color:rgba(255,255,255,.2)">See the live demo</a>
+    </div>
+  </div>
+  <div class="mock">
+    <div class="mockbar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span>Sober — your unified memory</span></div>
+    <div class="mockbody">
+      <div class="mockside">
+        <div class="mstitle">Today</div>
+        <div class="mitem active">Portfolio website<span>ChatGPT · Claude · Claude&nbsp;Code</span></div>
+        <div class="mitem">Hackathon plan<span>Claude Code</span></div>
+        <div class="mitem">Pixel, my beagle<span>chat</span></div>
+        <div class="mstitle" style="margin-top:16px">Profile</div>
+        <div class="mitem">Your company<span>from your sign-in</span></div>
+      </div>
+      <div class="mockmain">
+        <div class="mmhead">Recall across sessions &amp; tools</div>
+        <div class="replay" id="replay"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TRUST STRIP -->
+<section class="trust"><div class="wrap">
+  <span>Works with the AI tools you already use —</span>
+  <div class="pills">
+    <span class="tp"><i style="background:#10a37f"></i>ChatGPT</span>
+    <span class="tp"><i style="background:#d97757"></i>Claude</span>
+    <span class="tp"><i style="background:#4d7ef0"></i>Gemini</span>
+    <span class="tp"><i style="background:#191512"></i>Claude Code</span>
+    <span class="tp"><i style="background:#0098ff"></i>Cursor</span>
+    <span class="tp"><i style="background:#23a55a"></i>VS Code</span>
+  </div>
+</div></section>
+
+<!-- PROBLEM -->
+<section class="sec" id="problem"><div class="wrap">
+  <div class="center reveal"><span class="kicker">The problem</span><h2 class="big">One forgets. One remembers.</h2>
+    <p class="lead">Watch the difference. A stateless model loses the thread; Sober keeps it — and recalls it on demand.</p></div>
+  <div class="ba">
+    <div class="bacard bad reveal">
+      <div class="h"><svg class="ic" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M18 6L6 18M6 6l12 12"/></svg> Stateless LLM</div>
+      <div class="body">
+        <div class="chatline"><span class="a">YOU</span><span class="t">My dog Pixel is a beagle.</span></div>
+        <div class="chatline fade"><span class="a">AI</span><span class="t">Got it!</span></div>
+        <div class="chatline" style="margin-top:6px"><span class="a">YOU</span><span class="t">What breed is my dog?</span></div>
+        <div class="chatline"><span class="a">AI</span><span class="t" style="color:#c0443a">I don't have that information. 🤷</span></div>
+      </div>
+    </div>
+    <div class="bacard good reveal">
+      <div class="h"><svg class="ic" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M20 6L9 17l-5-5"/></svg> With Sober</div>
+      <div class="body">
+        <div class="chatline"><span class="a">YOU</span><span class="t">My dog Pixel is a beagle.</span></div>
+        <div class="chatline"><span class="a" style="background:#191512;color:#fff">S</span><span class="t">Stored in memory ✓</span></div>
+        <div class="chatline" style="margin-top:6px"><span class="a">YOU</span><span class="t">What breed is my dog?</span></div>
+        <div class="chatline"><span class="a" style="background:#191512;color:#fff">S</span><span class="t recall">Pixel is a beagle.</span></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<!-- HOW -->
+<section class="sec alt" id="how"><div class="wrap">
+  <div class="center reveal"><span class="kicker">How it works</span><h2 class="big">Remember → Cognify → Recall</h2>
+    <p class="lead">Three calls turn raw conversation into queryable, persistent memory.</p></div>
+  <div class="steps">
+    <div class="step reveal"><div class="n">1</div><h3>Remember</h3><p>Each message is ingested into a graph-vector store with <code>remember()</code>.</p></div>
+    <div class="step reveal"><div class="n">2</div><h3>Cognify</h3><p>An LLM extracts entities & relationships, embeds them, and commits edges to the graph.</p></div>
+    <div class="step reveal"><div class="n">3</div><h3>Recall</h3><p>Answers traverse the graph and complete with <code>recall()</code> — grounded, not guessed.</p></div>
+  </div>
+</div></section>
+
+<!-- FEATURES -->
+<section class="sec" id="features"><div class="wrap">
+  <div class="center reveal"><span class="kicker">Why Sober</span><h2 class="big">Memory that compounds</h2></div>
+  <div class="feats">
+    <div class="feat reveal"><div class="fi"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg></div><h3>Persistent across sessions</h3><p>Close the tab, return days later — Sober still knows you.</p></div>
+    <div class="feat reveal"><div class="fi"><svg class="ic" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="18" r="2.4"/><circle cx="12" cy="5" r="2.4"/><path d="M11 7l-4 9M13 7l4 9"/></svg></div><h3>Graph-based recall</h3><p>A real knowledge graph of entities and relationships, not a flat chat log.</p></div>
+    <div class="feat reveal"><div class="fi"><svg class="ic" viewBox="0 0 24 24"><path d="M23 18l-9.5-9.5-5 5L1 6"/><path d="M17 18h6v-6"/></svg></div><h3>No context overflow</h3><p>Retrieves only the relevant subgraph, so token cost stays flat.</p></div>
+    <div class="feat reveal"><div class="fi"><svg class="ic" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/></svg></div><h3>Self-hosted & open</h3><p>Runs entirely on open-source Cognee. Your memory, your infra.</p></div>
+    <div class="feat reveal"><div class="fi"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5"/></svg></div><h3>Self-improving</h3><p>Memify reweights the graph from usage, so memory sharpens over time.</p></div>
+    <div class="feat reveal"><div class="fi"><svg class="ic" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>Live visualization</h3><p>Watch memory form as an interactive, force-directed graph.</p></div>
+  </div>
+</div></section>
+
+<!-- INTEGRATIONS -->
+<section class="sec" id="integrations"><div class="wrap">
+  <div class="center"><span class="kicker">Integrations</span><h2 class="big">Connect your AI history</h2>
+    <p class="lead">Your context is scattered across ChatGPT, Claude, Gemini and your coding tools. Import it once — Sober unifies it all into a single memory graph you can recall from anywhere.</p></div>
+  <div class="intgrid">
+    <button class="intcard" data-src="ChatGPT"><div class="nm"><span class="lg" style="background:#10a37f">C</span>ChatGPT</div><span class="act">Upload / paste export →</span></button>
+    <button class="intcard" data-src="Claude"><div class="nm"><span class="lg" style="background:#d97757">A</span>Claude</div><span class="act">Upload / paste export →</span></button>
+    <button class="intcard" data-src="Gemini"><div class="nm"><span class="lg" style="background:#4d7ef0">G</span>Gemini</div><span class="act">Upload / paste export →</span></button>
+    <button class="intcard" data-src="Claude Code" data-local="1"><div class="nm"><span class="lg" style="background:#191512">&gt;_</span>Claude&nbsp;Code</div><span class="act">Scan local transcripts →</span></button>
+  </div>
+  <div class="importbox" id="importbox">
+    <div class="ibhead">Importing from <b id="ibsrc">ChatGPT</b> — paste your export JSON/text, or choose the exported file.</div>
+    <textarea id="ibtext" placeholder="Paste your exported conversation here (ChatGPT/Claude/Gemini export JSON, or any text)…"></textarea>
+    <div class="ibrow">
+      <label class="btn"><input type="file" id="ibfile" accept=".json,.txt,.md" hidden> Choose export file</label>
+      <button class="btn primary" id="ibimport">Import to memory</button>
+      <span id="ibmsg" class="ibmsg"></span>
+    </div>
+  </div>
+</div></section>
+
+<!-- DEMO -->
+<section class="sec alt" id="demo"><div class="wrap">
+  <div class="center reveal"><span class="kicker">Live demo</span><h2 class="big">Talk to Sober. Watch it remember.</h2>
+    <p class="lead">The real product, on a live Cognee backend. Tell it something, then build the graph.</p></div>
+  <div class="demo">
+    <div class="panel reveal">
+      <div class="ptop"><span class="lab">conversation</span><span class="sp"></span></div>
+      <div id="log">
+        <div class="hello" id="hello"><h4>I always remember last night.</h4>
+          <p>Tell me things — I store them in a knowledge graph and remember across sessions.</p>
+          <div class="sugs" id="sugs">
+            <button class="sug"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>I'm building a portfolio website with Next.js.</button>
+            <button class="sug"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>I have a beagle named Pixel.</button>
+            <button class="sug"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>What do you remember about me?</button>
+          </div>
+        </div>
+      </div>
+      <div class="composer"><input id="text" placeholder="Tell me something, or ask what I remember…"/>
+        <button class="send" id="send">Send<svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+    </div>
+    <div class="panel reveal" style="position:relative">
+      <div class="ptop"><span class="lab">memory graph</span><span class="sp"></span>
+        <button class="btn" id="reset" style="padding:7px 12px;font-size:13px;margin-right:8px"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Reset</button>
+        <button class="btn" id="build" style="padding:7px 13px;font-size:13px"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>Build</button></div>
+      <canvas id="graphCanvas"></canvas>
+      <div class="gempty" id="gempty">Say something on the left — your memory graph builds and grows here automatically.</div>
+      <div class="glegend">
+        <span><i style="background:#f08c4f"></i>Entity</span><span><i style="background:#3bbcb0"></i>Type</span>
+        <span><i style="background:#638bf5"></i>Chunk</span><span><i style="background:#947ef2"></i>Summary</span><span><i style="background:#50c276"></i>Document</span>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<!-- COMPARE -->
+<section class="sec" id="compare"><div class="wrap">
+  <div class="center reveal"><span class="kicker">The payoff</span><h2 class="big">Flat cost. Sharp recall.</h2>
+    <p class="lead">Stuffing history into the prompt explodes tokens. Sober retrieves only what matters.</p></div>
+  <div class="cmp">
+    <div class="cmpc reveal"><h3>Naive context-stuffing</h3><p>Tokens grow every turn → overflow.</p><div class="bar"><i data-w="96" style="background:#e8714a"></i></div><div style="color:var(--muted);font-size:12px;margin-top:6px">grows unbounded</div></div>
+    <div class="cmpc reveal"><h3>Sober graph recall</h3><p>Retrieves a small relevant slice.</p><div class="bar"><i data-w="22" style="background:#1f9e8f"></i></div><div style="color:var(--muted);font-size:12px;margin-top:6px">stays flat</div></div>
+  </div>
+</div></section>
+
+<!-- WORKS WHERE YOU DO -->
+<section class="sec" id="works"><div class="wrap">
+  <div class="center reveal"><span class="kicker">Plugins — where you are</span><h2 class="big">Memory across every tool</h2>
+    <p class="lead">Sober pulls context from the AI tools and editors you already work in — and unifies it in one place.</p></div>
+  <div class="iconwrap reveal">
+    <div class="toolitem"><div class="toolic"><svg viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="1.5" style="width:30px;height:30px"><ellipse cx="12" cy="12" rx="9.5" ry="4"/><ellipse cx="12" cy="12" rx="9.5" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9.5" ry="4" transform="rotate(120 12 12)"/></svg></div><span>ChatGPT</span></div>
+    <div class="toolitem"><div class="toolic"><svg viewBox="0 0 24 24" fill="none" stroke="#d97757" stroke-width="2.2" stroke-linecap="round" style="width:30px;height:30px"><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="5.5" y1="5.5" x2="18.5" y2="18.5"/><line x1="18.5" y1="5.5" x2="5.5" y2="18.5"/></svg></div><span>Claude</span></div>
+    <div class="toolitem"><div class="toolic"><svg viewBox="0 0 24 24" style="width:30px;height:30px"><defs><linearGradient id="gmg" x1="0" y1="0" x2="24" y2="24"><stop stop-color="#4d7ef0"/><stop offset="1" stop-color="#9b5de5"/></linearGradient></defs><path fill="url(#gmg)" d="M12 1c.5 5.8 5.2 10.5 11 11-5.8.5-10.5 5.2-11 11-.5-5.8-5.2-10.5-11-11C6.8 11.5 11.5 6.8 12 1Z"/></svg></div><span>Gemini</span></div>
+    <div class="toolitem"><div class="toolic dark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:28px;height:28px"><path d="M5 8l4 4-4 4M12 16h7"/></svg></div><span>Claude Code</span></div>
+    <div class="toolitem"><div class="toolic"><svg viewBox="0 0 24 24" fill="none" stroke="#0098ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:28px;height:28px"><path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/></svg></div><span>VS Code</span></div>
+    <div class="toolitem"><div class="toolic"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" style="width:30px;height:30px"><path stroke="#EA4335" stroke-linecap="round" d="M4.5 8.2a8.5 8.5 0 0 1 15 0"/><path stroke="#FBBC05" stroke-linecap="round" d="M19.5 8.2a8.5 8.5 0 0 1-6.5 12.1"/><path stroke="#34A853" stroke-linecap="round" d="M11 20.3A8.5 8.5 0 0 1 4.5 8.2"/><circle cx="12" cy="12" r="3.4" fill="#4285F4"/></svg></div><span>Chrome</span></div>
+  </div>
+</div></section>
+
+<!-- PRIVATE BY DESIGN -->
+<section class="sec alt" id="private"><div class="wrap">
+  <div class="center reveal"><span class="kicker">Private by design</span><h2 class="big">Your memory stays yours</h2>
+    <p class="lead">Local-first and decoupled — Sober runs on open-source Cognee on your own machine. No data leaves unless you say so.</p></div>
+  <div class="feats">
+    <div class="feat reveal"><div class="fi"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><h3>Local-first</h3><p>Your graph lives on your infrastructure, never a vendor's cloud.</p></div>
+    <div class="feat reveal"><div class="fi"><svg class="ic" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/></svg></div><h3>Decoupled & open</h3><p>Swap LLMs and databases freely — Cognee is open-source and portable.</p></div>
+    <div class="feat reveal"><div class="fi"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></div><h3>Yours to delete</h3><p>One call to <code style="background:var(--bg3);padding:1px 6px;border-radius:5px">forget()</code> wipes everything. No lock-in.</p></div>
+  </div>
+</div></section>
+
+<!-- TESTIMONIALS -->
+<section class="sec" id="loved"><div class="wrap">
+  <div class="center reveal"><span class="kicker">Why it matters</span><h2 class="big">Memory changes everything</h2></div>
+  <div class="quotes">
+    <div class="quote reveal"><p>"I move between ChatGPT, Claude and Cursor all day — and re-explain myself every time. A shared memory layer is the obvious missing piece."</p><div class="by"><span class="av">DV</span><div><div class="nm">A developer</div><div class="hh">the daily AI-tab problem</div></div></div></div>
+    <div class="quote reveal"><p>"When you call an LLM, every request is stateless. It doesn't remember the last session, and it spills out of its context window."</p><div class="by"><span class="av">WC</span><div><div class="nm">The Hangover Part AI</div><div class="hh">WeMakeDevs × Cognee — the problem statement</div></div></div></div>
+  </div>
+</div></section>
+
+<!-- CTA -->
+<section class="sec"><div class="ctaband reveal">
+  <h2>Your agent doesn't have to wake up in Vegas.</h2>
+  <p>Give it a memory that never forgets — open source, self-hosted, built on Cognee.</p>
+  <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+    <a class="btn" href="#demo">Try the live demo</a>
+    <a class="btn ghost" href="https://github.com/topoteretes/cognee" target="_blank">View Cognee on GitHub</a>
+  </div>
+</div></section>
+
+<div class="stickyCta" id="stickyCta" style="display:none">
+  <div class="inner"><span>Your AI work is scattered across <b>5+ tools</b> — let Sober remember it all.</span>
+    <button class="go" data-getstarted>Connect now</button>
+    <button class="x" id="stickyX">&times;</button></div>
+</div>
+
+<footer><div class="wrap foot">
+  <a class="logo" href="#top"><svg width="24" height="24" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="9" fill="#191512"/><path d="M16 8 L9 23 M16 8 L23 23 M9 23 L23 23" stroke="#e07a33" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="8" r="3.6" fill="#e07a33"/><circle cx="9" cy="23" r="3" fill="#fff"/><circle cx="23" cy="23" r="3" fill="#fff"/></svg><b style="font-size:15px">Sober</b></a>
+  <span class="sp"></span><span>Powered by <a href="https://github.com/topoteretes/cognee" style="color:var(--accent2)" target="_blank">Cognee</a> · WeMakeDevs Hackathon 2026</span>
+</div></footer>
+
+<script>
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("in");if(e.target.querySelectorAll){e.target.querySelectorAll(".bar i").forEach(b=>b.style.width=b.dataset.w+"%");}io.unobserve(e.target);}}),{threshold:.16});
+document.querySelectorAll(".reveal").forEach(el=>io.observe(el));
+addEventListener("load",()=>setTimeout(()=>document.querySelectorAll(".reveal:not(.in)").forEach(el=>el.classList.add("in")),800));
+
+/* sticky CTA — appears after the hero, dismissible */
+(function(){var s=document.getElementById("stickyCta");if(!s)return;var dis=false;
+  var x=document.getElementById("stickyX");if(x)x.onclick=function(){dis=true;s.style.display="none";};
+  addEventListener("scroll",function(){if(dis)return;s.style.display=(scrollY>innerHeight*0.9)?"flex":"none";},{passive:true});
+})();
+
+/* cognee-style animated background grid (light) */
+(function(){
+  const c=document.getElementById("bgGrid");if(!c)return;const x=c.getContext("2d");let w,h,cs,cells=[];
+  function rs(){w=c.width=innerWidth*devicePixelRatio;h=c.height=innerHeight*devicePixelRatio;cs=48*devicePixelRatio;}
+  rs();addEventListener("resize",rs);
+  function spawn(){const cols=Math.ceil(w/cs),rows=Math.ceil(h/cs);cells.push({cx:(Math.random()*cols)|0,cy:(Math.random()*rows)|0,a:0,dir:1,max:.04+Math.random()*.06});if(cells.length>30)cells.shift();}
+  let last=0;
+  function loop(t){
+    x.clearRect(0,0,w,h);
+    x.strokeStyle="rgba(25,21,18,.035)";x.lineWidth=devicePixelRatio;
+    for(let gx=0;gx<=w;gx+=cs){x.beginPath();x.moveTo(gx,0);x.lineTo(gx,h);x.stroke();}
+    for(let gy=0;gy<=h;gy+=cs){x.beginPath();x.moveTo(0,gy);x.lineTo(w,gy);x.stroke();}
+    for(const cell of cells){cell.a+=cell.dir*.0045;if(cell.a>=cell.max)cell.dir=-1;if(cell.a>0){x.fillStyle="rgba(224,122,51,"+cell.a+")";x.fillRect(cell.cx*cs+1,cell.cy*cs+1,cs-2,cs-2);}}
+    cells=cells.filter(c2=>!(c2.dir<0&&c2.a<=0));
+    if(t-last>300){last=t;spawn();}
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* hero: multi-session memory replay — shows recall ACROSS sessions */
+(function(){
+  const box=document.getElementById("replay");if(!box)return;
+  const steps=[
+    {t:"split",x:"SESSION 1"},
+    {t:"me",x:"My dog Pixel is a beagle."},
+    {t:"bot",x:"Got it — saved to memory ✓"},
+    {t:"split",x:"TAB CLOSED · 3 DAYS LATER"},
+    {t:"me",x:"What breed is my dog?"},
+    {t:"bot",x:"Pixel is a beagle.",recall:1},
+  ];
+  function add(s){let el;
+    if(s.t==="split"){el=document.createElement("div");el.className="rsplit";el.append(document.createTextNode(s.x));}
+    else{el=document.createElement("div");el.className="rb "+s.t;
+      const a=document.createElement("div");a.className="a";a.textContent=s.t==="me"?"YOU":"S";
+      const t=document.createElement("div");t.className="t"+(s.recall?" recall":"");t.textContent=s.x;
+      el.append(a,t);}
+    box.appendChild(el);box.scrollTop=box.scrollHeight;}
+  let i=0,timer;
+  function step(){if(i>=steps.length){timer=setTimeout(run,2800);return;}add(steps[i]);i++;timer=setTimeout(step,i<=1?600:950);}
+  function run(){box.innerHTML="";i=0;step();}
+  run();
+})();
+
+/* chat */
+const log=document.getElementById("log"),text=document.getElementById("text"),sendBtn=document.getElementById("send");
+const killHello=()=>{const h=document.getElementById("hello");if(h)h.remove();};
+function bubble(role,c){killHello();const m=document.createElement("div");m.className="msg "+role;const a=document.createElement("div");a.className="av";a.textContent=role==="me"?"YOU":"S";const b=document.createElement("div");b.className="bubble";if(c==="__typing__")b.innerHTML='<span class="typing"><span></span><span></span><span></span></span>';else b.textContent=c;m.append(a,b);log.appendChild(m);log.scrollTop=log.scrollHeight;return b;}
+async function send(){const message=text.value.trim();if(!message)return;bubble("me",message);text.value="";sendBtn.disabled=true;const t=bubble("bot","__typing__");
+  try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message})});const d=await r.json();t.textContent=d.reply||d.error||"(no reply)";
+    setTimeout(()=>{try{window.__refreshGraph&&window.__refreshGraph();window.__updateStatus&&window.__updateStatus();setTimeout(window.__updateStatus, 4500);}catch(_){}} ,350);
+  }catch(e){t.textContent="⚠️ Couldn't reach the Sober server — is it running on port 8000?";}sendBtn.disabled=false;text.focus();}
+sendBtn.onclick=send;text.addEventListener("keydown",e=>{if(e.key==="Enter")send();});
+document.getElementById("sugs")?.addEventListener("click",e=>{const s=e.target.closest(".sug");if(s){text.value=s.textContent.trim();send();}});
+
+/* custom force-directed graph (light) */
+const COLORS={Entity:"#f08c4f",EntityType:"#3bbcb0",DocumentChunk:"#638bf5",TextSummary:"#947ef2",TextDocument:"#50c276",Node:"#abafb8"};
+(function(){
+  const c=document.getElementById("graphCanvas"),x=c.getContext("2d");let w,h,N=[],E=[],drag=null,hover=null,raf=null,posCache={};
+  function rs(){w=c.width=c.offsetWidth*devicePixelRatio;h=c.height=c.offsetHeight*devicePixelRatio;}
+  rs();addEventListener("resize",rs);
+  const col=t=>COLORS[t]||COLORS.Node;
+  async function build(){
+    if(!N.length){document.getElementById("gempty").style.display="flex";document.getElementById("gempty").textContent="Building your memory graph…";}
+    try{const r=await fetch("/api/graph?t="+Date.now(),{cache:"no-store"});const g=await r.json();
+      if(!g.nodes||!g.nodes.length){document.getElementById("gempty").style.display="flex";document.getElementById("gempty").textContent="No memory yet — say something on the left.";return;}
+      const idx={};N=g.nodes.map((n,i)=>{idx[n.id]=i;const pc=posCache[n.id];return{...n,x:pc?pc.x:w/2+(Math.random()-.5)*w*.6,y:pc?pc.y:h/2+(Math.random()-.5)*h*.6,vx:0,vy:0,deg:0};});
+      E=g.edges.filter(e=>idx[e.source]!=null&&idx[e.target]!=null).map(e=>({s:idx[e.source],t:idx[e.target]}));
+      E.forEach(e=>{N[e.s].deg++;N[e.t].deg++;});
+      const top=[...N].sort((p,q)=>q.deg-p.deg).slice(0,3);N.forEach(n=>n.hub=top.includes(n));
+      document.getElementById("gempty").style.display="none";if(raf)cancelAnimationFrame(raf);tick();
+    }catch(e){document.getElementById("gempty").textContent="Error: "+e;}
+  }
+  function tick(){
+    for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){const a=N[i],b=N[j];let dx=a.x-b.x,dy=a.y-b.y,d=Math.hypot(dx,dy)||1;const f=(5200*devicePixelRatio*devicePixelRatio)/(d*d);a.vx+=dx/d*f*.0013;a.vy+=dy/d*f*.0013;b.vx-=dx/d*f*.0013;b.vy-=dy/d*f*.0013;}
+    for(const e of E){const a=N[e.s],b=N[e.t];let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,k=(d-150*devicePixelRatio)*.011;a.vx+=dx/d*k;a.vy+=dy/d*k;b.vx-=dx/d*k;b.vy-=dy/d*k;}
+    for(const n of N){n.vx+=(w/2-n.x)*.0011;n.vy+=(h/2-n.y)*.0011;n.vx*=.86;n.vy*=.86;if(n!==drag){n.x+=n.vx;n.y+=n.vy;}n.x=Math.max(22,Math.min(w-22,n.x));n.y=Math.max(22,Math.min(h-22,n.y));posCache[n.id]={x:n.x,y:n.y};}
+    x.clearRect(0,0,w,h);const t=Date.now()/1000;
+    for(const e of E){const a=N[e.s],b=N[e.t];x.strokeStyle="rgba(25,21,18,.1)";x.lineWidth=0.8*devicePixelRatio;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();
+      const p=(t*.32+e.s*.13)%1,px=a.x+(b.x-a.x)*p,py=a.y+(b.y-a.y)*p;x.fillStyle="rgba(224,122,51,.45)";x.beginPath();x.arc(px,py,1.1*devicePixelRatio,0,7);x.fill();}
+    for(const n of N){const r=(3.2+Math.min(n.deg,4)*0.8)*devicePixelRatio,cc=col(n.type);
+      x.fillStyle=cc;x.beginPath();x.arc(n.x,n.y,r,0,7);x.fill();
+      if(n===hover||n.hub){const tx=(n.label||"").slice(0,24);x.font="500 "+(9*devicePixelRatio)+"px Inter,sans-serif";x.textAlign="center";x.fillStyle="rgba(25,21,18,.75)";x.fillText(tx,n.x,n.y-r-6*devicePixelRatio);}}
+    raf=requestAnimationFrame(tick);
+  }
+  const pos=ev=>{const r=c.getBoundingClientRect();return{x:(ev.clientX-r.left)*devicePixelRatio,y:(ev.clientY-r.top)*devicePixelRatio};};
+  const near=p=>{let b=null,bd=22*devicePixelRatio;for(const n of N){const d=Math.hypot(n.x-p.x,n.y-p.y);if(d<bd){bd=d;b=n;}}return b;};
+  c.addEventListener("mousedown",e=>{drag=near(pos(e));c.style.cursor=drag?"grabbing":"grab";});
+  c.addEventListener("mousemove",e=>{const p=pos(e);if(drag){drag.x=p.x;drag.y=p.y;drag.vx=drag.vy=0;}else{hover=near(p);c.style.cursor=hover?"pointer":"grab";}});
+  addEventListener("mouseup",()=>drag=null);
+  document.getElementById("build").onclick=build;
+  window.__refreshGraph=build;
+  document.getElementById("reset").onclick=async()=>{
+    if(!confirm("Clear all memory and start fresh?"))return;
+    await fetch("/forget",{method:"POST"});
+    N=[];E=[];posCache={};if(raf)cancelAnimationFrame(raf);x.clearRect(0,0,w,h);
+    document.querySelectorAll("#log .msg").forEach(m=>m.remove());
+    const ge=document.getElementById("gempty");ge.style.display="flex";ge.textContent="Memory cleared — say something on the left and watch it build.";
+  };
+  let built=false;new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting&&!built){built=true;build();}}),{threshold:.3}).observe(document.getElementById("demo"));
+})();
+
+/* auth + onboarding — sign in, then connect your AI history */
+(function(){
+  const overlay=document.getElementById("overlay"),mAuth=document.getElementById("mAuth"),mOnboard=document.getElementById("mOnboard"),navCta=document.getElementById("navCta");
+  if(!overlay)return;
+  const user=()=>localStorage.getItem("sober_user");
+  function setNav(email){if(navCta)navCta.innerHTML='<span class="who"><span class="av">'+email[0].toUpperCase()+'</span>'+email.split("@")[0]+'</span>';}
+  const mAuthDefault=document.getElementById("mAuthDefault"),mGoogleStep=document.getElementById("mGoogleStep");
+  function showAuth(){overlay.classList.add("on");mAuth.style.display="block";mOnboard.style.display="none";mAuthDefault.style.display="block";mGoogleStep.style.display="none";}
+  function showOnboard(email){overlay.classList.add("on");mAuth.style.display="none";mOnboard.style.display="block";document.getElementById("obEmail").textContent=email;}
+  function closeAll(){overlay.classList.remove("on");}
+  function signIn(email){email=(email||"").trim();if(!email||email.indexOf("@")<1){alert("Please enter a valid email.");return;}localStorage.setItem("sober_user",email);setNav(email);showOnboard(email);
+    fetch("/profile",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})}).then(()=>{try{window.__refreshGraph&&window.__refreshGraph();window.__updateStatus&&window.__updateStatus();setTimeout(window.__updateStatus, 4500);}catch(_){}}).catch(()=>{});}
+  document.querySelectorAll("[data-getstarted]").forEach(b=>b.onclick=()=>{const u=user();if(u){setNav(u);showOnboard(u);}else showAuth();});
+  document.getElementById("authGo").onclick=()=>signIn(document.getElementById("authEmail").value);
+  document.getElementById("authEmail").addEventListener("keydown",e=>{if(e.key==="Enter")signIn(e.target.value);});
+  document.getElementById("googleBtn").onclick=()=>{mAuthDefault.style.display="none";mGoogleStep.style.display="block";document.getElementById("googleEmail").focus();};
+  document.getElementById("googleBack").onclick=()=>{mGoogleStep.style.display="none";mAuthDefault.style.display="block";};
+  document.getElementById("googleGo").onclick=()=>signIn(document.getElementById("googleEmail").value);
+  document.getElementById("googleEmail").addEventListener("keydown",e=>{if(e.key==="Enter")signIn(e.target.value);});
+  overlay.addEventListener("click",e=>{if(e.target===overlay||e.target.hasAttribute("data-close"))closeAll();});
+  let curSrc=null;const obFile=document.getElementById("obFile");
+  const refresh=()=>{try{window.__refreshGraph&&window.__refreshGraph();}catch(_){}};
+  function done(el,label){el.classList.add("done");el.querySelector(".cbtn").textContent="Connected ✓";el.querySelector(".gd").textContent=label;refresh();}
+  
+  const updateStatus = async () => {
+    try {
+      const r = await fetch("/api/status");
+      const d = await r.json();
+      const el = document.querySelector('[data-local="1"]');
+      if (!el) return;
+      if (d.claude_md) {
+        done(el, "Auto-syncing context to claude.md ✓");
+      } else if (d.claude_code && !el.classList.contains("done")) {
+        el.querySelector(".gd").textContent = "Local Claude Code transcripts found — click Connect to import.";
+      }
+    } catch(e) {}
+  };
+  window.__updateStatus = updateStatus;
+
+  document.querySelectorAll("#connlist .conntool").forEach(el=>{
+    const btn=el.querySelector(".cbtn");
+    btn.onclick=async()=>{
+      if(el.dataset.local){btn.textContent="Scanning…";
+        try{const r=await fetch("/import/local",{method:"POST"});const d=await r.json();
+          if(d.ok){done(el,"Imported "+d.chars+" chars from "+d.files+" sessions");updateStatus();}
+          else{btn.textContent="Retry";el.querySelector(".gd").textContent=d.error||"Failed";}
+        }catch(e){btn.textContent="Retry";}
+        return;}
+      curSrc=el.dataset.src;obFile._row=el;
+      obFile.click();
+    };
+  });
+  obFile.onchange=async()=>{const f=obFile.files[0];if(!f)return;const el=obFile._row;const btn=el.querySelector(".cbtn");btn.textContent="Importing…";
+    try{const text=await f.text();const r=await fetch("/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source:curSrc,text})});const d=await r.json();
+      if(d.ok){done(el,"Imported "+d.chars+" chars");updateStatus();setTimeout(updateStatus, 4500);}else{btn.textContent="Retry";el.querySelector(".gd").textContent=d.error||"Failed";}
+    }catch(e){btn.textContent="Retry";}obFile.value="";};
+  const btnSignOut = document.getElementById("btnSignOut");
+  if(btnSignOut){
+    btnSignOut.onclick = () => {
+      localStorage.removeItem("sober_user");
+      closeAll();
+      window.location.reload();
+    };
+  }
+  const u=user();if(u){setNav(u);updateStatus();}
+})();
+
+/* integrations — connect your AI history */
+(function(){
+  const box=document.getElementById("importbox"),src=document.getElementById("ibsrc"),ta=document.getElementById("ibtext"),file=document.getElementById("ibfile"),msg=document.getElementById("ibmsg");
+  if(!box)return;let cur="ChatGPT";
+  const toast=(t,err)=>{msg.textContent=t;msg.className="ibmsg"+(err?" err":"");};
+  function done(){try{window.__refreshGraph&&window.__refreshGraph();}catch(_){}}
+  document.querySelectorAll(".intcard").forEach(card=>{
+    card.onclick=async()=>{
+      cur=card.dataset.src;src.textContent=cur;box.classList.add("on");
+      if(card.dataset.local){
+        toast("Scanning your local Claude Code transcripts…");
+        try{const r=await fetch("/import/local",{method:"POST"});const d=await r.json();
+          if(d.ok){toast("Imported "+d.chars+" chars from "+d.files+" Claude Code sessions ✓ — see the graph below.");setTimeout(done,500);document.getElementById("demo").scrollIntoView({behavior:"smooth"});window.__updateStatus&&window.__updateStatus();setTimeout(window.__updateStatus, 4500);}
+          else toast(d.error||"Import failed",1);
+        }catch(e){toast("Error: "+e,1);} return;
+      }
+      toast("");ta.focus();box.scrollIntoView({behavior:"smooth",block:"center"});
+    };
+  });
+  file.onchange=async()=>{const f=file.files[0];if(!f)return;ta.value=await f.text();toast("Loaded "+f.name+" — click Import to memory.");};
+  document.getElementById("ibimport").onclick=async()=>{
+    const text=ta.value.trim();if(!text){toast("Paste your export or choose a file first.",1);return;}
+    toast("Importing into memory…");
+    try{const r=await fetch("/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source:cur,text})});const d=await r.json();
+      if(d.ok){toast("Imported "+d.chars+" chars from "+d.source+" ✓ — see the graph below.");ta.value="";setTimeout(done,500);document.getElementById("demo").scrollIntoView({behavior:"smooth"});window.__updateStatus&&window.__updateStatus();setTimeout(window.__updateStatus, 4500);}
+      else toast(d.error||"Import failed",1);
+    }catch(e){toast("Error: "+e,1);}
+  };
+})();
+</script>
+</body>
+</html>

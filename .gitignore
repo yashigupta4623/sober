@@ -1,0 +1,10 @@
+.env
+.venv/
+.cognee_data/
+.cognee_system/
+static/graph.html
+__pycache__/
+*.pyc
+.benchmark_data/
+.benchmark_system/
+claude.md
