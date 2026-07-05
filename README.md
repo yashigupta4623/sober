@@ -119,4 +119,3 @@ We utilize Cognee's core memory lifecycle APIs directly to power the user experi
 ## 🏅 Hackathon Tracks Targeted
 *   **Track 1: Best Use of Open Source** — Running entirely on self-hosted Cognee open-source graph-vector databases (Kuzu / Ladybug).
 *   **Track 2: Best Use of Cognee Cloud** — Supports seamless toggle to Cognee Cloud simply by setting `COGNEE_CLOUD_URL` and `COGNEE_CLOUD_API_KEY` in your `.env`.
-*   **Track 4 & 5: Best Blogs & Social Buzz** — Narrated walkthroughs and blog scripts inside [BLOG.md](file:///Users/yashigupta/Downloads/sober/BLOG.md) and [DEMO_SCRIPT.md](file:///Users/yashigupta/Downloads/sober/DEMO_SCRIPT.md).

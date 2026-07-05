@@ -153,6 +153,7 @@ async def schedule_context_update():
 # Self-improvement: every N chat turns, run Cognee's enrichment pipeline so the
 # graph gets sharper the more Sober is used (improve() re-weights and enriches).
 IMPROVE_EVERY = 5
+SESSION_ID = "sober_web_session"
 _chat_turns = 0
 
 
@@ -160,15 +161,38 @@ async def mem_improve():
     if USE_CLOUD:
         return
     try:
-        await cognee.improve(dataset=DATASET, run_in_background=True)
+        # session_ids makes improve() also apply user feedback weights and
+        # distill the session's Q&A into the permanent graph.
+        await cognee.improve(dataset=DATASET, session_ids=[SESSION_ID], run_in_background=True)
     except Exception:
         pass
+
+
+async def store_qa(question: str, answer: str, context: str) -> str | None:
+    """Record the Q&A in Cognee's session memory; the returned qa_id lets the
+    user rate this reply, feeding feedback weights back into the graph."""
+    if USE_CLOUD:
+        return None
+    try:
+        from cognee import QAEntry
+
+        res = await cognee.remember(
+            QAEntry(question=question, answer=answer, context=_clean_long_words(context or "")[:4000]),
+            dataset_name=DATASET,
+            session_id=SESSION_ID,
+            self_improvement=False,
+        )
+        return getattr(res, "entry_id", None)
+    except Exception:
+        return None
 
 
 _SYSTEM_PROMPT = (
     "You are Sober, an AI assistant with a persistent memory graph that spans multiple "
     "AI tools and sessions. Answer the user's question using ONLY the memory context "
-    "provided. If the context doesn't contain enough information, be honest and specific "
+    "provided. Memory entries prefixed 'User said' are facts about the user; entries "
+    "prefixed 'Sober replied' are your own past answers — never attribute the user's "
+    "facts to yourself. If the context doesn't contain enough information, be honest and specific "
     "about what you do and don't have in memory — never make things up. "
     "Keep replies short and conversational."
 )
@@ -233,12 +257,14 @@ async def chat(body: ChatIn):
     await mem_remember(f"Sober replied: {reply}", run_in_background=True)
     await schedule_context_update()
 
+    qa_id = await store_qa(body.message, reply, context if not USE_CLOUD else "")
+
     global _chat_turns
     _chat_turns += 1
     if _chat_turns % IMPROVE_EVERY == 0:
         await mem_improve()
 
-    return {"reply": reply, "backend": "cloud" if USE_CLOUD else "local"}
+    return {"reply": reply, "qa_id": qa_id, "backend": "cloud" if USE_CLOUD else "local"}
 
 
 @app.post("/graph")
@@ -252,6 +278,28 @@ async def build_graph():
     STATIC_DIR.mkdir(exist_ok=True)
     await cognee.visualize_graph(destination_file_path=str(GRAPH_HTML), dataset=DATASET)
     return {"ok": True, "url": "/static/graph.html"}
+
+
+class FeedbackIn(BaseModel):
+    qa_id: str
+    score: int  # 1 (bad) .. 5 (great)
+
+
+@app.post("/feedback")
+async def feedback(body: FeedbackIn):
+    """Rate a reply. Cognee re-weights the graph nodes that produced it:
+    good answers boost their source memories, bad ones down-weight them."""
+    if USE_CLOUD:
+        return {"ok": False, "error": "Feedback weighting runs via your cloud dashboard on Cognee Cloud."}
+    score = max(1, min(5, body.score))
+    try:
+        ok = await cognee.session.add_feedback(
+            SESSION_ID, body.qa_id, feedback_text=None, feedback_score=score
+        )
+        await mem_improve()
+        return {"ok": bool(ok)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 @app.post("/improve")

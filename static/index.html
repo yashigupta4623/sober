@@ -591,8 +591,22 @@ addEventListener("load",()=>setTimeout(()=>document.querySelectorAll(".reveal:no
 const log=document.getElementById("log"),text=document.getElementById("text"),sendBtn=document.getElementById("send");
 const killHello=()=>{const h=document.getElementById("hello");if(h)h.remove();};
 function bubble(role,c){killHello();const m=document.createElement("div");m.className="msg "+role;const a=document.createElement("div");a.className="av";a.textContent=role==="me"?"YOU":"S";const b=document.createElement("div");b.className="bubble";if(c==="__typing__")b.innerHTML='<span class="typing"><span></span><span></span><span></span></span>';else b.textContent=c;m.append(a,b);log.appendChild(m);log.scrollTop=log.scrollHeight;return b;}
+function addFeedback(bubbleEl,qaId){
+  const row=document.createElement("div");
+  row.style.cssText="display:flex;gap:6px;margin-top:8px;align-items:center";
+  const mk=(icon,score,title)=>{const b=document.createElement("button");b.textContent=icon;b.title=title;
+    b.style.cssText="background:none;border:1px solid var(--line);border-radius:8px;padding:2px 8px;cursor:pointer;font-size:13px;line-height:1.4";
+    b.onclick=async()=>{row.querySelectorAll("button").forEach(x=>x.disabled=true);
+      try{const r=await fetch("/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({qa_id:qaId,score})});const d=await r.json();
+        row.innerHTML='<span style="font-size:12px;color:var(--muted)">'+(d.ok?"Thanks — memory re-weighted ✓":"Couldn’t record feedback")+"</span>";
+      }catch(e){row.innerHTML='<span style="font-size:12px;color:var(--muted)">Couldn’t record feedback</span>';}};
+    return b;};
+  row.append(mk("👍",5,"Good answer — boost the memories behind it"),mk("👎",1,"Bad answer — down-weight the memories behind it"));
+  bubbleEl.appendChild(row);
+}
 async function send(){const message=text.value.trim();if(!message)return;bubble("me",message);text.value="";sendBtn.disabled=true;const t=bubble("bot","__typing__");
   try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message})});const d=await r.json();t.textContent=d.reply||d.error||"(no reply)";
+    if(d.qa_id)addFeedback(t,d.qa_id);
     setTimeout(()=>{try{window.__refreshGraph&&window.__refreshGraph();window.__updateStatus&&window.__updateStatus();setTimeout(window.__updateStatus, 4500);}catch(_){}} ,350);
   }catch(e){t.textContent="⚠️ Couldn't reach the Sober server — is it running on port 8000?";}sendBtn.disabled=false;text.focus();}
 sendBtn.onclick=send;text.addEventListener("keydown",e=>{if(e.key==="Enter")send();});
